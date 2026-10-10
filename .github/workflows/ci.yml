@@ -80,7 +80,7 @@ jobs:
           lfs: true
 
       - name: Cache Unreal Engine
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             D:\Game Engines\UE_${{ env.UE_VERSION }}
@@ -89,7 +89,7 @@ jobs:
             ue-${{ env.UE_VERSION }}-${{ runner.os }}-
 
       - name: Cache Build Artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             D:\Work Station\UE\DA\Intermediate
@@ -140,7 +140,7 @@ jobs:
           lfs: true
 
       - name: Cache Unreal Engine
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: D:\Game Engines\UE_${{ env.UE_VERSION }}
           key: ue-${{ env.UE_VERSION }}-${{ runner.os }}
