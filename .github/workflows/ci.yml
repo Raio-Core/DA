@@ -191,7 +191,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download Editor Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: DA-Editor-Development-${{ github.sha }}
           path: D:\Work Station\UE\DA\Binaries\Win64\
@@ -323,7 +323,7 @@ jobs:
       contents: write
     steps:
       - name: Download Packaged Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: DA-Shipping-Win64-${{ github.sha }}
           path: ./release-package
