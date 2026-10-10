@@ -18,6 +18,16 @@ void ADACharacterBase::BeginPlay()
 	
 }
 
+bool ADACharacterBase::CanCharacterJump() const
+{
+	return CanJump();
+}
+
+void ADACharacterBase::HasJumped()
+{
+	
+}
+
 // Called every frame
 void ADACharacterBase::Tick(float DeltaTime)
 {

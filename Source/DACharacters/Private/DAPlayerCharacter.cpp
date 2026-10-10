@@ -1,6 +1,8 @@
 // Copyright Raioix & Raiocore. All Rights Reserved 2026.
 
 #include "DAPlayerCharacter.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -64,6 +66,33 @@ void ADAPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		{
+			if (DefaultMappingContext)
+			{
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
+		}
+	}
+	
+	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ADAPlayerCharacter::PlayerJump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ADAPlayerCharacter::StopJumping);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ADAPlayerCharacter::Move);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ADAPlayerCharacter::Look);
+		EnhancedInputComponent->BindAction(ToggleCameraPerspective, ETriggerEvent::Completed, this, &ADAPlayerCharacter::TogglePerspective);
+		
+		/* Reminder for future implementation
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &ADAPlayerCharacter::SprintOn);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ADAPlayerCharacter::SprintOff);
+		EnhancedInputComponent->BindAction(SneakAction, ETriggerEvent::Started, this, &ADAPlayerCharacter::SneakOn);
+		EnhancedInputComponent->BindAction(SneakAction, ETriggerEvent::Completed, this, &ADAPlayerCharacter::SneakOff);
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Completed, this, &ADAPlayerCharacter::OnInteract);
+		EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Completed, this, &ADAPlayerCharacter::TogglePlayerInventory_Implementation);
+		EnhancedInputComponent->BindAction(LeanAction, ETriggerEvent::Triggered, this, &ADAPlayerCharacter::Lean);
+		EnhancedInputComponent->BindAction(LeanAction, ETriggerEvent::Completed, this, &ADAPlayerCharacter::Lean);
+		*/
 	}
 }
 
@@ -76,8 +105,8 @@ void ADAPlayerCharacter::Move(const FInputActionValue& Value)
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-		AddMovementInput(ForwardDirection, MovementVector.X);
-		AddMovementInput(RightDirection, MovementVector.Y);
+		AddMovementInput(ForwardDirection, MovementVector.Y);
+		AddMovementInput(RightDirection, MovementVector.X);
 	}
 }
 
@@ -93,7 +122,10 @@ void ADAPlayerCharacter::Look(const FInputActionValue& Value)
 
 void ADAPlayerCharacter::PlayerJump()
 {
-	 
+	 if (ADACharacterBase::CanCharacterJump() && !GetMovementComponent()->IsFalling())
+	 {
+		 ADACharacterBase::HasJumped();
+	 }
 }
 
 void ADAPlayerCharacter::TogglePerspective()
