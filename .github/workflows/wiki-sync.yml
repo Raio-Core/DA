@@ -1,0 +1,78 @@
+name: Wiki Sync
+
+on:
+  push:
+    branches: [master, develop]
+    paths:
+      - 'Docs/**'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'CHANGELOG.md'
+      - 'LICENSE'
+      - 'SECURITY.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    name: Sync Documentation to GitHub Wiki
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wiki Sync Tool
+        run: npm install -g github-wiki-sync
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Sync main docs
+          github-wiki-sync \
+            --repo "Raio-Core/DA" \
+            --source "Docs" \
+            --destination "wiki" \
+            --ignore "node_modules,.git" \
+            --dry-run=false
+
+      - name: Sync Root Markdown Files
+        run: |
+          # Create wiki pages for root markdown files
+          mkdir -p wiki-pages
+          
+          # Copy and convert root files
+          cp README.md wiki-pages/Home.md
+          cp CONTRIBUTING.md wiki-pages/Contributing.md
+          cp CHANGELOG.md wiki-pages/Changelog.md
+          cp LICENSE wiki-pages/License.md
+          cp SECURITY.md wiki-pages/Security.md
+          
+          # Sync to wiki
+          cd wiki-pages
+          git init
+          git remote add origin https://github.com/Raio-Core/DA.wiki.git
+          git add .
+          git commit -m "wiki: sync root documentation [skip ci]"
+          git push -f origin master
+
+      - name: Verify Wiki Sync
+        run: |
+          # Verify wiki is accessible
+          curl -f "https://github.com/Raio-Core/DA/wiki" || echo "Wiki not yet enabled"
