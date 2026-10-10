@@ -113,7 +113,7 @@ jobs:
           Write-Host "Found $($dlls.Count) module DLL(s)"
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: matrix.config == 'Development'
         with:
           name: DA-Editor-${{ matrix.config }}-${{ github.sha }}
@@ -170,7 +170,7 @@ jobs:
           Write-Host "Package size: $("{0:N2}" -f ($exe.Length / 1MB)) MB"
 
       - name: Upload Packaged Build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DA-Shipping-Win64-${{ github.sha }}
           path: D:\Work Station\UE\DA\Packaged\Windows\DA\
