@@ -1,0 +1,81 @@
+# Unreal Engine
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+Saved/Logs/
+Saved/Config/
+Saved/StagedBuilds/
+Saved/Crashes/
+Saved/VideoCaptures/
+
+# Visual Studio
+.vs/
+*.sln
+*.slnx
+*.vcxproj*
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.user
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.VC.opendb
+
+# Rider / JetBrains
+.idea/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Build artifacts
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# Compiled objects
+*.obj
+*.o
+
+# Local config
+*.local
+*.private
+
+# IDE temp files
+*.swp
+*.swo
+*~
+
+# Unreal specific
+*.uproject
+!*.uproject
+*.uplugin
+!*.uplugin
+
+# Generated files
+*.generated.h
+*.generated.cpp
+*.gen.cpp
+
+# Plugins (optional - uncomment if you want to ignore plugins)
+# Plugins/
+# !Plugins/Marketplace/
+# !Plugins/YourCustomPlugin/
+
+# Packaged builds
+*.pak
+*.sig
+*.ucas
+*.utoc
+
+# Shader cache
+*.shadercache
