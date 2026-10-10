@@ -1,0 +1,42 @@
+# CODEOWNERS
+# These users/groups will be automatically requested for review when
+# changes are made to the files they own.
+
+# Global owners (fallback for all files)
+* @Raioix @Raiocore
+
+# Core module
+/Source/DA/ @Raioix @Raiocore
+
+# Character system
+/Source/DACharacters/ @Raioix @Raiocore
+
+# Build configuration
+/*.Build.cs @Raioix
+/*.Target.cs @Raioix
+/DA.uproject @Raioix @Raiocore
+
+# Project configuration
+/Config/ @Raioix
+
+# CI/CD
+/.github/workflows/ @Raioix @Raiocore
+/.github/dependabot.yml @Raioix
+
+# Documentation
+/README.md @Raioix @Raiocore
+/CONTRIBUTING.md @Raioix @Raiocore
+/CHANGELOG.md @Raioix @Raiocore
+/LICENSE @Raioix @Raiocore
+/SECURITY.md @Raioix @Raiocore
+
+# Content (artists/designers)
+/Content/Characters/ @Raioix
+/Content/Input/ @Raioix
+/Content/ThirdPerson/ @Raioix
+/Content/Variant_Combat/ @Raioix
+/Content/Variant_Platforming/ @Raioix
+/Content/Variant_SideScrolling/ @Raioix
+
+# Plugins (if any)
+/Plugins/ @Raioix @Raiocore

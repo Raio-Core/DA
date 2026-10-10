@@ -1,0 +1,70 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Unreal Engine specific
+*.uasset binary
+*.umap binary
+*.uproject text
+*.ini text
+*.Build.cs text
+*.Target.cs text
+
+# C++ source
+*.h text
+*.cpp text
+*.cs text
+
+# Documentation
+*.md text
+*.txt text
+
+# Configuration
+*.yml text
+*.yaml text
+*.json text
+*.xml text
+
+# Scripts
+*.py text
+*.ps1 text
+*.bat text
+*.sh text
+
+# Images (binary)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+
+# Fonts
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+
+# Executables
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+
+# Visual Studio
+*.sln text
+*.slnx text
+*.vcxproj text
+*.vcxproj.filters text
+*.vcxproj.user text
+
+# JetBrains
+*.iml text
+
+# VS Code
+*.code-workspace text

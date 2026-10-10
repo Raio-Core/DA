@@ -1,0 +1,398 @@
+name: DA CI/CD Pipeline
+
+on:
+  push:
+    branches: [master, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [master, develop]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday 2 AM
+
+env:
+  UE_VERSION: '5.8'
+  PROJECT_PATH: 'DA.uproject'
+  CONFIGURATION: 'Development'
+  PLATFORM: 'Win64'
+
+jobs:
+  # ============================================================
+  # CODE QUALITY & STATIC ANALYSIS
+  # ============================================================
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Unreal Linter
+        run: |
+          pip install ue4cli ue4format
+
+      - name: Run clang-format Check
+        run: |
+          find Source -name "*.h" -o -name "*.cpp" | xargs clang-format --dry-run --Werror
+
+      - name: Run Include-What-You-Use
+        run: |
+          # Check for missing includes
+          python -c "
+          import os, re
+          for root, dirs, files in os.walk('Source'):
+            for f in files:
+              if f.endswith('.h') or f.endswith('.cpp'):
+                path = os.path.join(root, f)
+                with open(path) as fp:
+                  content = fp.read()
+                  # Basic checks
+                  if '#pragma once' not in content and f.endswith('.h'):
+                    print(f'WARNING: {path} missing #pragma once')
+          "
+
+  # ============================================================
+  # UNREAL ENGINE BUILD
+  # ============================================================
+  build-editor:
+    name: Build Editor (${{ matrix.config }})
+    runs-on: windows-latest
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        config: [Development, Shipping]
+      fail-fast: false
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          lfs: true
+
+      - name: Cache Unreal Engine
+        uses: actions/cache@v4
+        with:
+          path: |
+            D:\Game Engines\UE_${{ env.UE_VERSION }}
+          key: ue-${{ env.UE_VERSION }}-${{ runner.os }}-${{ hashFiles('**/DA.uproject') }}
+          restore-keys: |
+            ue-${{ env.UE_VERSION }}-${{ runner.os }}-
+
+      - name: Cache Build Artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            D:\Work Station\UE\DA\Intermediate
+            D:\Work Station\UE\DA\Binaries
+          key: build-${{ matrix.config }}-${{ github.sha }}
+          restore-keys: |
+            build-${{ matrix.config }}-
+
+      - name: Generate Project Files
+        run: |
+          & "D:\Game Engines\UE_${{ env.UE_VERSION }}\Engine\Build\BatchFiles\GenerateProjectFiles.bat" "${{ env.PROJECT_PATH }}"
+
+      - name: Build Editor Target
+        run: |
+          & "D:\Game Engines\UE_${{ env.UE_VERSION }}\Engine\Build\BatchFiles\Build.bat" DAEditor ${{ env.PLATFORM }} ${{ matrix.config }} -Project="${{ env.PROJECT_PATH }}" -WaitMutex -architecture=x64
+
+      - name: Verify Build Output
+        run: |
+          $dlls = Get-ChildItem "D:\Work Station\UE\DA\Binaries\${{ env.PLATFORM }}\UnrealEditor-DA*.dll"
+          if (-not $dlls) { Write-Error "No DA module DLLs found!"; exit 1 }
+          Write-Host "Found $($dlls.Count) module DLL(s)"
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        if: matrix.config == 'Development'
+        with:
+          name: DA-Editor-${{ matrix.config }}-${{ github.sha }}
+          path: |
+            D:\Work Station\UE\DA\Binaries\${{ env.PLATFORM }}\UnrealEditor-DA*.dll
+            D:\Work Station\UE\DA\Binaries\${{ env.PLATFORM }}\UnrealEditor-DACharacters*.dll
+          retention-days: 14
+
+  # ============================================================
+  # PACKAGE SHIPPING BUILD
+  # ============================================================
+  package:
+    name: Package Shipping Client
+    runs-on: windows-latest
+    timeout-minutes: 120
+    needs: [build-editor]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          lfs: true
+
+      - name: Cache Unreal Engine
+        uses: actions/cache@v4
+        with:
+          path: D:\Game Engines\UE_${{ env.UE_VERSION }}
+          key: ue-${{ env.UE_VERSION }}-${{ runner.os }}
+
+      - name: Build Shipping Client
+        run: |
+          & "D:\Game Engines\UE_${{ env.UE_VERSION }}\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun `
+            -project="${{ env.PROJECT_PATH }}" `
+            -platform=Win64 `
+            -clientconfig=Shipping `
+            -serverconfig=Shipping `
+            -build `
+            -cook `
+            -stage `
+            -pak `
+            -archive `
+            -archivedirectory="D:\Work Station\UE\DA\Packaged" `
+            -utf8output `
+            -compile `
+            -nocompileeditor `
+            -installed
+
+      - name: Verify Package
+        run: |
+          $exe = Get-ChildItem "D:\Work Station\UE\DA\Packaged\Windows\DA\Binaries\Win64\DA.exe"
+          if (-not $exe) { Write-Error "Packaged executable not found!"; exit 1 }
+          Write-Host "Package size: $("{0:N2}" -f ($exe.Length / 1MB)) MB"
+
+      - name: Upload Packaged Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: DA-Shipping-Win64-${{ github.sha }}
+          path: D:\Work Station\UE\DA\Packaged\Windows\DA\
+          retention-days: 30
+
+  # ============================================================
+  # AUTOMATED TESTING
+  # ============================================================
+  test:
+    name: Automated Tests
+    runs-on: windows-latest
+    timeout-minutes: 60
+    needs: [build-editor]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Editor Build
+        uses: actions/download-artifact@v4
+        with:
+          name: DA-Editor-Development-${{ github.sha }}
+          path: D:\Work Station\UE\DA\Binaries\Win64\
+
+      - name: Run Unit Tests
+        run: |
+          & "D:\Work Station\UE\DA\Binaries\Win64\UnrealEditor-Cmd.exe" "${{ env.PROJECT_PATH }}" `
+            -run=AutomationTest `
+            -TestNames="DA.*" `
+            -nullrhi `
+            -nosound `
+            -unattended `
+            -stdout `
+            -log
+
+      - name: Run Gameplay Tests (GAuntlet)
+        if: false  # Enable when Gauntlet tests are added
+        run: |
+          # Gauntlet automation would go here
+          echo "Gauntlet tests not yet configured"
+
+  # ============================================================
+  # DOCUMENTATION GENERATION
+  # ============================================================
+  docs:
+    name: Generate Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Doxygen
+        uses: actions/setup-doxygen@v1
+
+      - name: Setup Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Generate API Docs
+        run: |
+          cat > Doxyfile << 'EOF'
+          PROJECT_NAME = "DA Framework"
+          PROJECT_NUMBER = ${{ github.sha }}
+          OUTPUT_DIRECTORY = docs
+          INPUT = Source
+          RECURSIVE = YES
+          EXTRACT_ALL = YES
+          EXTRACT_PRIVATE = YES
+          EXTRACT_STATIC = YES
+          GENERATE_HTML = YES
+          GENERATE_LATEX = NO
+          HAVE_DOT = YES
+          CLASS_DIAGRAMS = YES
+          COLLABORATION_GRAPH = YES
+          GROUP_GRAPHS = YES
+          UML_LOOK = YES
+          TEMPLATE_RELATIONS = YES
+          INCLUDE_GRAPH = YES
+          INCLUDED_BY_GRAPH = YES
+          CALL_GRAPH = YES
+          CALLER_GRAPH = YES
+          DIRECTORY_GRAPH = YES
+          EOF
+          doxygen Doxyfile
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/html
+          destination_dir: api
+
+  # ============================================================
+  # README AUTO-UPDATE
+  # ============================================================
+  update-readme:
+    name: Update README Stats
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Contributors List
+        uses: akhileshns/contributors-list-action@v1
+        with:
+          path: README.md
+          start_tag: '<!-- CONTRIBUTORS_START -->'
+          end_tag: '<!-- CONTRIBUTORS_END -->'
+          columns: 5
+          max: 20
+
+      - name: Update Commit Stats
+        run: |
+          # Update last commit date in README
+          LAST_COMMIT=$(git log -1 --format="%ci" --date=short)
+          sed -i "s|<strong id=\"last-updated\">.*</strong>|<strong id=\"last-updated\">$LAST_COMMIT</strong>|" README.md
+
+      - name: Commit README Updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(readme): auto-update stats [skip ci]"
+            git push
+          else
+            echo "No changes to README"
+          fi
+
+  # ============================================================
+  # RELEASE
+  # ============================================================
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build-editor, package]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download Packaged Build
+        uses: actions/download-artifact@v4
+        with:
+          name: DA-Shipping-Win64-${{ github.sha }}
+          path: ./release-package
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: DA ${{ github.ref_name }}
+          body: |
+            ## DA ${{ github.ref_name }}
+            
+            ### Changes
+            ${{ github.event.head_commit.message }}
+            
+            ### Downloads
+            - **Windows 64-bit Shipping Build** - [DA-Win64-Shipping.zip](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/DA-Win64-Shipping.zip)
+            
+            ### Installation
+            1. Download and extract the zip
+            2. Run `DA.exe` to play
+            
+            ### Build Info
+            - **Commit:** ${{ github.sha }}
+            - **Date:** ${{ github.event.head_commit.timestamp }}
+            - **Engine:** Unreal Engine ${{ env.UE_VERSION }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            ./release-package/**/DA.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================
+  # NOTIFICATIONS
+  # ============================================================
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [build-editor, package, test, docs, release]
+    if: always()
+    steps:
+      - name: Check Job Status
+        run: |
+          echo "Build: ${{ needs.build-editor.result }}"
+          echo "Package: ${{ needs.package.result }}"
+          echo "Test: ${{ needs.test.result }}"
+          echo "Docs: ${{ needs.docs.result }}"
+          echo "Release: ${{ needs.release.result }}"
+
+      - name: Send Discord Notification
+        if: always()
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: |
+            {
+              "embeds": [{
+                "title": "DA Build ${{ job.status }}",
+                "description": "Branch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}",
+                "color": ${{ job.status == 'success' && 3066993 || 15158332 }},
+                "fields": [
+                  {"name": "Editor Build", "value": "${{ needs.build-editor.result }}", "inline": true},
+                  {"name": "Packaging", "value": "${{ needs.package.result }}", "inline": true},
+                  {"name": "Tests", "value": "${{ needs.test.result }}", "inline": true},
+                  {"name": "Documentation", "value": "${{ needs.docs.result }}", "inline": true}
+                ],
+                "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              }]
+            }
